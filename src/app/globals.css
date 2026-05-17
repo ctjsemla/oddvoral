@@ -1,26 +1,49 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --op-bg: #f0f2f5;
+  --op-surface: #ffffff;
+  --op-header: #1b5e20;
+  --op-header-dark: #0d3d12;
+  --op-accent: #2e7d32;
+  --op-accent-light: #4caf50;
+  --op-text: #212121;
+  --op-text-muted: #757575;
+  --op-border: #e0e0e0;
+  --op-best: #d32f2f;
+  --op-drop: #ff6f00;
+  --op-live: #e53935;
+  --op-sure: #1565c0;
+  --op-value: #6a1b9a;
+  --op-row-hover: #f5f5f5;
+  --op-row-alt: #fafafa;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-op-bg: var(--op-bg);
+  --color-op-surface: var(--op-surface);
+  --color-op-header: var(--op-header);
+  --color-op-header-dark: var(--op-header-dark);
+  --color-op-accent: var(--op-accent);
+  --color-op-accent-light: var(--op-accent-light);
+  --color-op-text: var(--op-text);
+  --color-op-text-muted: var(--op-text-muted);
+  --color-op-border: var(--op-border);
+  --color-op-best: var(--op-best);
+  --color-op-drop: var(--op-drop);
+  --color-op-live: var(--op-live);
+  --color-op-sure: var(--op-sure);
+  --color-op-value: var(--op-value);
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--op-bg);
+  color: var(--op-text);
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #bdbdbd transparent;
 }
