@@ -35,7 +35,11 @@ export function OddsCell({
   const addToCoupon = useStore((s) => s.addToCoupon);
 
   if (!value) {
-    return <td className="px-2 py-2 text-center text-op-text-muted text-xs">—</td>;
+    return (
+      <td className="px-2 py-2 text-center text-op-text-muted text-xs w-[3.25rem] shrink-0">
+        —
+      </td>
+    );
   }
 
   const handleClick = () => {
@@ -55,7 +59,7 @@ export function OddsCell({
   };
 
   return (
-    <td className="px-1 py-1.5 text-center">
+    <td className="px-1 py-1.5 text-center w-[3.25rem] shrink-0">
       <button
         onClick={handleClick}
         title={

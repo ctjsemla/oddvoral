@@ -208,6 +208,7 @@ export const t = {
     time: "Time",
     match: "Match",
     noMatches: "No matches match your criteria.",
+    scrollHint: "Swipe sideways for odds →",
   },
 
   time: {

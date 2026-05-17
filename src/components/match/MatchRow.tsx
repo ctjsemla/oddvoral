@@ -75,7 +75,7 @@ export function MatchRow({ match, showLeague }: MatchRowProps) {
         )}
       </td>
 
-      <td className="px-2 py-2 min-w-[220px]">
+      <td className="px-2 py-2 min-w-[9.5rem] sm:min-w-[11rem] md:min-w-[13.75rem]">
         <Link href={`/match/${match.id}`} className="hover:text-op-accent">
           <div className="text-sm font-medium">
             <span>
@@ -118,7 +118,9 @@ export function MatchRow({ match, showLeague }: MatchRowProps) {
           market={market.label}
         />
       ) : (
-        <td className="px-2 py-2 text-center text-op-text-muted w-16">—</td>
+        <td className="px-2 py-2 text-center text-op-text-muted w-[3.25rem] shrink-0">
+          —
+        </td>
       )}
       <OddsCell
         value={best.away.value || undefined}
