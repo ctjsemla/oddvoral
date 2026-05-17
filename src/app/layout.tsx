@@ -12,6 +12,10 @@ const geist = Geist({
 export const metadata: Metadata = {
   title: t.metaTitle,
   description: t.metaDescription,
+  icons: {
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/favicon.svg" }],
+  },
 };
 
 export default function RootLayout({

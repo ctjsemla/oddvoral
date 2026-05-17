@@ -6,6 +6,7 @@ import { OddsCell } from "@/components/odds/OddsCell";
 import { formatMatchTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/store/useStore";
+import { formatLiveClock } from "@/lib/live-clock";
 import type { Match, OddsEntry } from "@/types";
 import { t } from "@/lib/i18n/en-IN";
 
@@ -65,7 +66,7 @@ export function MatchRow({ match, showLeague }: MatchRowProps) {
         {match.status === "live" ? (
           <span className="text-op-live font-bold flex items-center gap-1">
             <span className="w-1.5 h-1.5 bg-op-live rounded-full animate-pulse" />
-            {match.minute}&apos;
+            {formatLiveClock(match)}
           </span>
         ) : match.status === "finished" ? (
           <span>{t.match.ft}</span>

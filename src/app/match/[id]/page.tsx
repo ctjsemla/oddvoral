@@ -11,6 +11,7 @@ import { OddsHistoryChart } from "@/components/odds/OddsHistoryChart";
 import { SharePredictionForm } from "@/components/community/SharePredictionForm";
 import { PredictionCard } from "@/components/community/PredictionCard";
 import { useBulletin } from "@/providers/BulletinProvider";
+import { formatLiveClock } from "@/lib/live-clock";
 import { getMatchOddsHistory } from "@/data/oddsHistory";
 import { buildSeedPredictions } from "@/data/community";
 import { formatMatchTime } from "@/lib/utils";
@@ -83,7 +84,7 @@ export default function MatchDetailPage({
               {match.country} · {formatMatchTime(match.startTime)}
               {match.status === "live" && (
                 <span className="ml-2 text-op-live font-bold">
-                  {t.match.live} {match.minute ? `${match.minute}'` : ""}
+                  {t.match.live} {formatLiveClock(match)}
                 </span>
               )}
               {match.status === "finished" && (

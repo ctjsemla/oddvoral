@@ -160,8 +160,7 @@ export function generateSportFallback(sport: Sport, count: number): Match[] {
   const matches: Match[] = [];
   for (let i = 0; i < count; i++) {
     const f = fixtures[i % fixtures.length];
-    const status: Match["status"] =
-      i === 0 ? "live" : i === 1 ? "live" : i < count - 1 ? "upcoming" : "finished";
+    const status: Match["status"] = i < count - 1 ? "upcoming" : "finished";
     matches.push(createFallbackMatch(sport, i, f, status));
   }
   return matches;

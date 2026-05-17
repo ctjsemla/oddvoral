@@ -1,21 +1,23 @@
 import { BOOKMAKERS } from "@/data/bookmakers";
 import { ensureAllSportsCoverage } from "@/data/matches-fallback";
 import { getTsdbSportNames } from "@/data/sports";
+import { applyEspnLiveAuthority, fetchEspnLiveMatches } from "@/lib/bulletin/espn-live";
+import {
+  type EventSource,
+  reconcileMatch,
+  resolveMatchStatus,
+  stripFakeLiveMatches,
+} from "@/lib/bulletin/match-status";
 import { markBestOdds } from "@/lib/odds";
 import { t } from "@/lib/i18n/en-IN";
-import type { Match, Market, OddsEntry, MatchStatus, Sport } from "@/types";
+import type { Match, Market, OddsEntry, Sport } from "@/types";
 
 const BASE = "https://www.thesportsdb.com/api/v1/json/3";
-const REVALIDATE_SEC = 45;
 
 const LEAGUE_IDS = [
-  // Football
   "4328", "4335", "4331", "4332", "4334", "4329", "4480", "4481",
-  // Tennis (Grand Slams + tours)
   "4517", "4516", "4515", "4514", "4464", "4510", "4511",
-  // Basketball / NHL / MLB
   "4387", "4380", "4424", "4391",
-  // Cricket / rugby / volleyball / handball
   "4460", "4410", "4551", "4562", "4479", "4398", "4400", "4370",
   "4553", "4563", "4570", "4580",
 ];
@@ -34,6 +36,18 @@ interface TsdbEvent {
   intAwayScore?: string | null;
   strStatus?: string;
 }
+
+interface EventRecord {
+  match: Match;
+  strStatus?: string;
+  source: EventSource;
+}
+
+const SOURCE_PRIORITY: Record<EventSource, number> = {
+  day: 3,
+  next: 2,
+  past: 1,
+};
 
 function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -54,41 +68,9 @@ function toIsoStartTime(raw?: string, dateEvent?: string, strTime?: string): str
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { next: { revalidate: REVALIDATE_SEC } });
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`TSDB ${res.status}`);
   return res.json() as Promise<T>;
-}
-
-function parseStatus(strStatus?: string): { status: MatchStatus; minute?: number } {
-  const s = (strStatus ?? "").toLowerCase();
-  if (
-    s.includes("finished") ||
-    s === "ft" ||
-    s.includes("aet") ||
-    s.includes("pen") ||
-    s.includes("completed")
-  ) {
-    return { status: "finished" };
-  }
-  if (
-    s.includes("1h") ||
-    s.includes("2h") ||
-    s.includes("ht") ||
-    s.includes("live") ||
-    s.includes("in progress") ||
-    s.includes("innings") ||
-    /^\d+'/.test(s)
-  ) {
-    const minute = s.includes("1h")
-      ? 25 + Math.floor(Math.random() * 20)
-      : s.includes("ht")
-        ? 45
-        : s.includes("2h")
-          ? 65 + Math.floor(Math.random() * 25)
-          : 50;
-    return { status: "live", minute };
-  }
-  return { status: "upcoming" };
 }
 
 function stableOdds(seed: string, base: number): number {
@@ -181,11 +163,10 @@ function mapSport(strSport?: string): Sport {
   return "football";
 }
 
-function mapEvent(ev: TsdbEvent): Match | null {
+function mapEvent(ev: TsdbEvent, eventSource: EventSource): Match | null {
   if (!ev.idEvent || !ev.strHomeTeam || !ev.strAwayTeam) return null;
 
   const sport = mapSport(ev.strSport);
-  const { status, minute } = parseStatus(ev.strStatus);
   const startTime = toIsoStartTime(ev.strTimestamp, ev.dateEvent, ev.strTime);
 
   const homeScore =
@@ -197,7 +178,16 @@ function mapEvent(ev: TsdbEvent): Match | null {
       ? parseInt(String(ev.intAwayScore), 10)
       : undefined;
 
-  return {
+  const { status, minute } = resolveMatchStatus({
+    strStatus: ev.strStatus,
+    startTimeIso: startTime,
+    sport,
+    homeScore: homeScore !== undefined && !Number.isNaN(homeScore) ? homeScore : undefined,
+    awayScore: awayScore !== undefined && !Number.isNaN(awayScore) ? awayScore : undefined,
+    eventSource,
+  });
+
+  const match: Match = {
     id: `live-${ev.idEvent}`,
     sport,
     league: ev.strLeague ?? sport,
@@ -213,6 +203,36 @@ function mapEvent(ev: TsdbEvent): Match | null {
     markets: buildMarkets(ev.idEvent, sport),
     popularity: status === "live" ? 100 : status === "upcoming" ? 55 : 25,
   };
+
+  return reconcileMatch(match, ev.strStatus, eventSource);
+}
+
+function upsertEvent(
+  store: Map<string, EventRecord>,
+  ev: TsdbEvent,
+  source: EventSource
+) {
+  if (!ev.idEvent) return;
+  const match = mapEvent(ev, source);
+  if (!match) return;
+
+  const prev = store.get(ev.idEvent);
+  if (!prev) {
+    store.set(ev.idEvent, { match, strStatus: ev.strStatus, source });
+    return;
+  }
+
+  const incomingPriority = SOURCE_PRIORITY[source];
+  const prevPriority = SOURCE_PRIORITY[prev.source];
+
+  const preferIncoming =
+    incomingPriority > prevPriority ||
+    (match.status === "live" && prev.match.status !== "live") ||
+    (match.status === "finished" && prev.match.status === "upcoming");
+
+  if (preferIncoming) {
+    store.set(ev.idEvent, { match, strStatus: ev.strStatus, source });
+  }
 }
 
 async function fetchDayEvents(date: string, sportParam: string): Promise<TsdbEvent[]> {
@@ -240,26 +260,45 @@ async function fetchLeagueEvents(
   }
 }
 
+function recordsToMatches(store: Map<string, EventRecord>): Match[] {
+  return [...store.values()].map(({ match, strStatus, source }) =>
+    reconcileMatch(match, strStatus, source)
+  );
+}
+
+async function finalizeBulletin(matches: Match[]): Promise<Match[]> {
+  const espnLive = await fetchEspnLiveMatches();
+  let result = applyEspnLiveAuthority(matches, espnLive);
+  result = ensureAllSportsCoverage(result, 6);
+  result = stripFakeLiveMatches(result);
+  result = applyEspnLiveAuthority(result, espnLive);
+  return result.sort((a, b) => {
+    if (a.status === "live" && b.status !== "live") return -1;
+    if (b.status === "live" && a.status !== "live") return 1;
+    return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+  });
+}
+
 async function mergeWithFallback(matches: Match[]): Promise<{
   matches: Match[];
   source: "live" | "fallback";
   updatedAt: string;
 }> {
   const { generateFallbackBulletin } = await import("@/data/matches-fallback");
-  const fallback = generateFallbackBulletin();
-  const merged = ensureAllSportsCoverage(
-    [
-      ...matches,
-      ...fallback.filter(
-        (f) => !matches.some((m) => m.sport === f.sport && m.homeTeam === f.homeTeam)
-      ),
-    ],
-    6
+  const fallback = stripFakeLiveMatches(generateFallbackBulletin());
+  const merged = await finalizeBulletin([
+    ...matches,
+    ...fallback.filter(
+      (f) => !matches.some((m) => m.sport === f.sport && m.homeTeam === f.homeTeam)
+    ),
+  ]);
+  const hasLiveData = matches.some(
+    (m) => m.id.startsWith("live-") || m.id.startsWith("espn-")
   );
-  const hasLiveData = matches.some((m) => m.id.startsWith("live-"));
+  const hasRealLive = merged.some((m) => m.status === "live");
   return {
     matches: merged,
-    source: hasLiveData && merged.length >= 20 ? "live" : "fallback",
+    source: hasLiveData && merged.length >= 20 ? (hasRealLive ? "live" : "fallback") : "fallback",
     updatedAt: new Date().toISOString(),
   };
 }
@@ -272,48 +311,60 @@ export async function fetchLiveBulletin(): Promise<{
   try {
     const now = new Date();
     const dates: string[] = [];
-    for (let offset = -3; offset <= 4; offset++) {
+    for (let offset = -1; offset <= 1; offset++) {
       const d = new Date(now);
       d.setDate(d.getDate() + offset);
       dates.push(formatDate(d));
     }
 
-    const fetches: Promise<TsdbEvent[]>[] = [];
+    const store = new Map<string, EventRecord>();
 
+    // Today's fixtures first — best live status from TheSportsDB
     for (const date of dates) {
       for (const sportName of getTsdbSportNames()) {
-        fetches.push(fetchDayEvents(date, sportName));
-      }
-    }
-
-    for (const leagueId of LEAGUE_IDS) {
-      fetches.push(fetchLeagueEvents("eventsnextleague", leagueId));
-      fetches.push(fetchLeagueEvents("eventspastleague", leagueId));
-    }
-
-    const batches = await Promise.all(fetches);
-    const seen = new Set<string>();
-    let matches: Match[] = [];
-
-    for (const batch of batches) {
-      for (const ev of batch) {
-        if (!ev.idEvent || seen.has(ev.idEvent)) continue;
-        seen.add(ev.idEvent);
-        try {
-          const m = mapEvent(ev);
-          if (m) matches.push(m);
-        } catch {
-          // skip malformed events
+        const events = await fetchDayEvents(date, sportName);
+        for (const ev of events) {
+          try {
+            upsertEvent(store, ev, "day");
+          } catch {
+            // skip malformed
+          }
         }
       }
     }
 
-    matches = ensureAllSportsCoverage(matches, 6);
-    matches.sort(
-      (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
-    );
+    const leagueFetches: Promise<void>[] = [];
+    for (const leagueId of LEAGUE_IDS) {
+      leagueFetches.push(
+        fetchLeagueEvents("eventsnextleague", leagueId).then((events) => {
+          for (const ev of events) {
+            try {
+              upsertEvent(store, ev, "next");
+            } catch {
+              // skip
+            }
+          }
+        })
+      );
+      leagueFetches.push(
+        fetchLeagueEvents("eventspastleague", leagueId).then((events) => {
+          for (const ev of events) {
+            try {
+              upsertEvent(store, ev, "past");
+            } catch {
+              // skip
+            }
+          }
+        })
+      );
+    }
+    await Promise.all(leagueFetches);
 
-    const hasLiveData = matches.some((m) => m.id.startsWith("live-"));
+    const rawMatches = stripFakeLiveMatches(recordsToMatches(store));
+    const matches = await finalizeBulletin(rawMatches);
+
+    const hasLiveData = rawMatches.some((m) => m.id.startsWith("live-"));
+    const hasRealLive = matches.some((m) => m.status === "live");
 
     if (!hasLiveData || matches.length < 20) {
       const merged = await mergeWithFallback(matches);
@@ -322,7 +373,7 @@ export async function fetchLiveBulletin(): Promise<{
 
     return {
       matches,
-      source: "live",
+      source: hasRealLive ? "live" : "fallback",
       updatedAt: new Date().toISOString(),
     };
   } catch {

@@ -6,7 +6,8 @@ import { format } from "date-fns";
 import { locale, t } from "@/lib/i18n/en-IN";
 
 export function BulletinBar() {
-  const { source, updatedAt, loading, error, refresh, matches } = useBulletin();
+  const { source, updatedAt, loading, refreshing, error, refresh, matches } =
+    useBulletin();
   const liveCount = matches.filter((m) => m.status === "live").length;
 
   return (
@@ -47,7 +48,10 @@ export function BulletinBar() {
           disabled={loading}
           className="flex items-center gap-1 text-op-accent font-medium hover:underline disabled:opacity-50"
         >
-          <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
+          <RefreshCw
+            size={12}
+            className={loading || refreshing ? "animate-spin" : ""}
+          />
           {t.bulletin.refresh}
         </button>
       </div>

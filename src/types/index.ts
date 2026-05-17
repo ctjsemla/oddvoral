@@ -61,6 +61,8 @@ export interface Match {
   homeScore?: number;
   awayScore?: number;
   minute?: number;
+  /** ESPN live phase label (HT, 2nd, Q3, or clock like 7:19). */
+  liveDetail?: string;
   markets: Market[];
   popularity: number;
 }

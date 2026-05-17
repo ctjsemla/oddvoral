@@ -1,14 +1,21 @@
 import { NextResponse } from "next/server";
-import { getBulletinMatches } from "@/lib/bulletin";
+import { getBulletinMatches, invalidateBulletinCache } from "@/lib/bulletin";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-export async function GET() {
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  if (url.searchParams.has("t")) {
+    invalidateBulletinCache();
+  }
+
   try {
     const data = await getBulletinMatches();
     return NextResponse.json(data, {
       headers: {
-        "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        Pragma: "no-cache",
       },
     });
   } catch {

@@ -5,7 +5,13 @@ import { fetchLiveBulletin } from "./thesportsdb";
 
 let serverCache: { matches: Match[]; updatedAt: string; source: string } | null = null;
 let serverCacheTime = 0;
-const SERVER_TTL_MS = 40_000;
+const SERVER_TTL_IDLE_MS = 20_000;
+const SERVER_TTL_LIVE_MS = 8_000;
+
+export function invalidateBulletinCache() {
+  serverCache = null;
+  serverCacheTime = 0;
+}
 
 export async function getBulletinMatches(): Promise<{
   matches: Match[];
@@ -13,7 +19,11 @@ export async function getBulletinMatches(): Promise<{
   updatedAt: string;
 }> {
   const now = Date.now();
-  if (serverCache && now - serverCacheTime < SERVER_TTL_MS) {
+  const ttl =
+    serverCache?.matches.some((m) => m.status === "live") === true
+      ? SERVER_TTL_LIVE_MS
+      : SERVER_TTL_IDLE_MS;
+  if (serverCache && now - serverCacheTime < ttl) {
     return serverCache;
   }
   try {

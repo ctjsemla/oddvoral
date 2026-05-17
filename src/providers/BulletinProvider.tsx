@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { Match, Sport } from "@/types";
@@ -22,6 +23,7 @@ interface BulletinContextValue {
   source: string;
   updatedAt: string | null;
   loading: boolean;
+  refreshing: boolean;
   error: string | null;
   refresh: () => Promise<void>;
   getMatch: (id: string) => Match | undefined;
@@ -32,18 +34,36 @@ interface BulletinContextValue {
 
 const BulletinContext = createContext<BulletinContextValue | null>(null);
 
-const POLL_MS = 45_000;
+/** Fast refresh while live fixtures exist; slower otherwise. */
+const POLL_LIVE_MS = 10_000;
+const POLL_IDLE_MS = 30_000;
+function hasLiveMatches(list: Match[]) {
+  return list.some((m) => m.status === "live");
+}
 
 export function BulletinProvider({ children }: { children: React.ReactNode }) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [source, setSource] = useState("loading");
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const matchesRef = useRef(matches);
+  const initialLoadDone = useRef(false);
 
-  const refresh = useCallback(async () => {
+  matchesRef.current = matches;
+
+  const refresh = useCallback(async (silent = false) => {
+    if (!silent && !initialLoadDone.current) {
+      setLoading(true);
+    } else if (silent) {
+      setRefreshing(true);
+    }
     try {
-      const res = await fetch("/api/bulletin", { cache: "no-store" });
+      const res = await fetch(`/api/bulletin?t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { Pragma: "no-cache" },
+      });
       const data = await res.json();
       const list = data.matches ?? [];
       if (!res.ok && list.length === 0) {
@@ -57,35 +77,59 @@ export function BulletinProvider({ children }: { children: React.ReactNode }) {
       setUpdatedAt(data.updatedAt ?? new Date().toISOString());
       setError(null);
     } catch (e) {
-      try {
-        const { generateFallbackBulletin } = await import("@/data/matches-fallback");
-        const fallback = generateFallbackBulletin();
-        setMatches(fallback);
-        setSource("fallback");
-        setUpdatedAt(new Date().toISOString());
-        setError(
-          e instanceof Error && e.message !== t.bulletin.loadError
-            ? e.message
-            : null
-        );
-      } catch {
-        setError(e instanceof Error ? e.message : t.bulletin.connectionError);
+      if (!silent || matchesRef.current.length === 0) {
+        try {
+          const { generateFallbackBulletin } = await import("@/data/matches-fallback");
+          const fallback = generateFallbackBulletin();
+          setMatches(fallback);
+          setSource("fallback");
+          setUpdatedAt(new Date().toISOString());
+          setError(
+            e instanceof Error && e.message !== t.bulletin.loadError
+              ? e.message
+              : null
+          );
+        } catch {
+          setError(e instanceof Error ? e.message : t.bulletin.connectionError);
+        }
       }
     } finally {
+      initialLoadDone.current = true;
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
-    const t0 = window.setTimeout(() => {
-      void refresh();
-    }, 0);
-    const id = window.setInterval(() => {
-      void refresh();
-    }, POLL_MS);
+    let cancelled = false;
+    let pollTimer: ReturnType<typeof setTimeout>;
+
+    const schedulePoll = () => {
+      if (cancelled) return;
+      const delay = hasLiveMatches(matchesRef.current) ? POLL_LIVE_MS : POLL_IDLE_MS;
+      pollTimer = setTimeout(async () => {
+        await refresh(true);
+        schedulePoll();
+      }, delay);
+    };
+
+    void refresh(false).then(() => {
+      if (!cancelled) schedulePoll();
+    });
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        void refresh(true);
+        clearTimeout(pollTimer);
+        schedulePoll();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
     return () => {
-      window.clearTimeout(t0);
-      window.clearInterval(id);
+      cancelled = true;
+      clearTimeout(pollTimer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [refresh]);
 
@@ -95,14 +139,15 @@ export function BulletinProvider({ children }: { children: React.ReactNode }) {
       source,
       updatedAt,
       loading,
+      refreshing,
       error,
-      refresh,
+      refresh: () => refresh(true),
       getMatch: (id) => getMatchFromList(matches, id),
       getBySport: (sport) => filterBySport(matches, sport),
       getLive: () => filterLive(matches),
       getPopular: (limit) => filterPopular(matches, limit),
     }),
-    [matches, source, updatedAt, loading, error, refresh]
+    [matches, source, updatedAt, loading, refreshing, error, refresh]
   );
 
   return (
