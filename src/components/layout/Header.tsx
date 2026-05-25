@@ -19,6 +19,7 @@ import {
 import { useState } from "react";
 import { useStore } from "@/store/useStore";
 import { useAuthStore } from "@/store/authStore";
+import { OddvoralLogo } from "@/components/brand/OddvoralLogo";
 import { UserAvatar } from "@/components/user/UserAvatar";
 import { t } from "@/lib/i18n/en-IN";
 import { cn } from "@/lib/utils";
@@ -58,10 +59,8 @@ export function Header() {
 
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between py-3">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center">
-              <span className="text-op-header font-black text-lg">OV</span>
-            </div>
+          <Link href="/" className="flex items-center gap-2.5">
+            <OddvoralLogo size={40} priority />
             <div>
               <span className="font-bold text-xl tracking-tight">{t.siteName}</span>
               <span className="text-white/60 text-xs block -mt-0.5">{t.siteTagline}</span>

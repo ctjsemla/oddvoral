@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 56" fill="none">
+  <rect width="240" height="56" fill="#000000"/>
+  <text
+    x="120"
+    y="40"
+    text-anchor="middle"
+    font-family="Arial Black, Impact, sans-serif"
+    font-size="30"
+    font-weight="900"
+    font-style="italic"
+    letter-spacing="-0.5"
+  >
+    <tspan fill="#ff605f">2</tspan><tspan fill="#3ca7b5">2</tspan><tspan fill="#ffffff" dx="3">BET</tspan>
+  </text>
+</svg>

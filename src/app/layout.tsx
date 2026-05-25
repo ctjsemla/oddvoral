@@ -13,8 +13,11 @@ export const metadata: Metadata = {
   title: t.metaTitle,
   description: t.metaDescription,
   icons: {
-    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
-    apple: [{ url: "/favicon.svg" }],
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/logo.svg", type: "image/svg+xml", sizes: "48x48" },
+    ],
+    apple: [{ url: "/logo.svg", type: "image/svg+xml", sizes: "180x180" }],
   },
 };
 
