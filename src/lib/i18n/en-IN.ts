@@ -25,6 +25,8 @@ export const t = {
     searchPlaceholder: "Search teams, leagues, users or matches…",
     compareOdds: "Compare the best betting odds · Tipster community",
     menu: "Menu",
+    siteClockTitle: "Site time — India (Mumbai)",
+    siteClockLabel: (time: string) => `India · Mumbai ${time}`,
   },
 
   bulletin: {
@@ -191,7 +193,7 @@ export const t = {
     bookmakersDesc: "Select bookmakers to show in comparison",
     favouriteSports: "Favourite Sports",
     timezone: "Timezone",
-    timezoneValue: "Asia/Kolkata (IST)",
+    timezoneValue: "India — Mumbai (Asia/Kolkata)",
   },
 
   footer: {

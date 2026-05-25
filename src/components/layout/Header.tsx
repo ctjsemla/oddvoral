@@ -20,6 +20,7 @@ import { useState } from "react";
 import { useStore } from "@/store/useStore";
 import { useAuthStore } from "@/store/authStore";
 import { OddvoralLogo } from "@/components/brand/OddvoralLogo";
+import { SiteClock } from "@/components/layout/SiteClock";
 import { UserAvatar } from "@/components/user/UserAvatar";
 import { t } from "@/lib/i18n/en-IN";
 import { cn } from "@/lib/utils";
@@ -52,7 +53,7 @@ export function Header() {
             <Link href="/community" className="hover:text-white transition-colors">
               {t.nav.tipsters}
             </Link>
-            <span>EN-IN | IST</span>
+            <SiteClock />
           </div>
         </div>
       </div>
