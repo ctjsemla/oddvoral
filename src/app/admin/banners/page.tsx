@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Image from "next/image";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { DateRangePicker } from "@/components/admin/DateRangePicker";
-import { PROMO_BANNERS, PROMO_CTR } from "@/data/promo-banners";
+import { PROMO_BANNERS } from "@/data/promo-banners";
 import {
   buildAnalyticsReport,
   formatCount,
@@ -34,7 +34,7 @@ export default function AdminBannersPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Banner Clicks</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Melbet · 1xBet · 22Bet outbound clicks ({formatPct(PROMO_CTR)} of sessions)
+              Melbet · 1xBet · 22Bet · ~{formatPct(report.promoCtr)} of visits leave to partners
             </p>
           </div>
           <DateRangePicker
@@ -54,7 +54,7 @@ export default function AdminBannersPage() {
               {formatCount(report.totalBannerClicks)}
             </p>
             <p className="text-xs text-gray-400 mt-1">
-              from {formatCount(report.totalSessions)} sessions
+              from {formatCount(report.totalVisits)} site visits
             </p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm col-span-1">
@@ -64,8 +64,12 @@ export default function AdminBannersPage() {
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm col-span-1">
             <p className="text-xs text-gray-500 uppercase">Avg. CTR</p>
-            <p className="text-3xl font-bold text-gray-900 mt-1">{formatPct(PROMO_CTR)}</p>
-            <p className="text-xs text-gray-400 mt-1">~168K promo clicks per 2.4M visits</p>
+            <p className="text-3xl font-bold text-gray-900 mt-1">
+              {formatPct(report.promoCtr)}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              ~22K partner clicks per 1M visits
+            </p>
           </div>
         </div>
 
@@ -139,9 +143,9 @@ export default function AdminBannersPage() {
         </div>
 
         <p className="text-xs text-gray-400 mt-6">
-          Model uses OddsPortal-scale session volumes. Banner clicks = sessions ×{" "}
-          {formatPct(PROMO_CTR)} × partner share. Live tracked counts increment when
-          users click homepage promo banners.
+          Partner clicks = site visits × period CTR ({formatPct(report.promoCtr)} for
+          this range) × partner share. Shorter ranges use a slightly higher daily rate.
+          Live tracked counts increment when users click homepage promo banners.
         </p>
       </div>
     </AdminShell>

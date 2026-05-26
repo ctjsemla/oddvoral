@@ -12,9 +12,11 @@ export interface BannerClickEvent {
 
 interface AdminState {
   isAuthenticated: boolean;
+  hasHydrated: boolean;
   bannerClicks: BannerClickEvent[];
   login: (password: string) => boolean;
   logout: () => void;
+  setHasHydrated: () => void;
   trackBannerClick: (bannerId: PromoBannerId, source: "logo" | "claim") => void;
   getClicksInRange: (start: Date, end: Date) => BannerClickEvent[];
 }
@@ -25,7 +27,10 @@ export const useAdminStore = create<AdminState>()(
   persist(
     (set, get) => ({
       isAuthenticated: false,
+      hasHydrated: false,
       bannerClicks: [],
+
+      setHasHydrated: () => set({ hasHydrated: true }),
 
       login: (password) => {
         if (password !== ADMIN_PASSWORD) return false;
@@ -53,7 +58,18 @@ export const useAdminStore = create<AdminState>()(
         });
       },
     }),
-    { name: "oddvoral-admin" }
+    {
+      name: "oddvoral-admin",
+      partialize: (state) => ({
+        isAuthenticated: state.isAuthenticated,
+        bannerClicks: state.bannerClicks,
+      }),
+      onRehydrateStorage: () => (_state, err) => {
+        if (!err) {
+          useAdminStore.getState().setHasHydrated();
+        }
+      },
+    }
   )
 );
 

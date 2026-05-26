@@ -41,5 +41,5 @@ export const PROMO_BANNERS: PromoBannerConfig[] = [
   },
 ];
 
-/** Overall promo CTR vs total sessions (OddsPortal-scale benchmark). */
-export const PROMO_CTR = 0.07;
+/** Default partner-outbound CTR vs site visits (~22K clicks per 1M visits). */
+export const PROMO_CTR_DEFAULT = 0.022;

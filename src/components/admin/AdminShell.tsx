@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { BarChart3, MousePointerClick, LogOut, LayoutDashboard } from "lucide-react";
 import { OddvoralLogo } from "@/components/brand/OddvoralLogo";
 import { useAdminStore } from "@/store/adminStore";
+import { useAdminReady } from "@/hooks/useAdminReady";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -17,11 +18,21 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const isAuthenticated = useAdminStore((s) => s.isAuthenticated);
+  const ready = useAdminReady();
   const logout = useAdminStore((s) => s.logout);
 
   useEffect(() => {
+    if (!ready) return;
     if (!isAuthenticated) router.replace("/admin/login");
-  }, [isAuthenticated, router]);
+  }, [ready, isAuthenticated, router]);
+
+  if (!ready) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 text-sm text-gray-500">
+        Loading admin…
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return (

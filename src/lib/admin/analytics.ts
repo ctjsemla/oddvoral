@@ -1,4 +1,4 @@
-import { PROMO_BANNERS, PROMO_CTR } from "@/data/promo-banners";
+import { PROMO_BANNERS, PROMO_CTR_DEFAULT } from "@/data/promo-banners";
 import type { PromoBannerId } from "@/data/promo-banners";
 import { eachDay, dayKey, type DateRange } from "@/lib/admin/date-range";
 
@@ -103,12 +103,23 @@ export interface AnalyticsReport {
   totalUsers: number;
   avgSessionDurationSec: number;
   bounceRate: number;
+  /** Partner-outbound CTR for selected period (visits-based). */
+  promoCtr: number;
   daily: DailyMetric[];
   countries: CountryMetric[];
   devices: DeviceMetric[];
   channels: ChannelMetric[];
   bannerClicks: BannerClickMetric[];
   totalBannerClicks: number;
+}
+
+/** Shorter ranges = slightly higher daily partner CTR. */
+export function promoCtrForRange(range: DateRange): number {
+  const days = eachDay(range).length;
+  if (days <= 7) return 0.028;
+  if (days <= 31) return 0.024;
+  if (days <= 90) return 0.022;
+  return PROMO_CTR_DEFAULT;
 }
 
 export function buildAnalyticsReport(range: DateRange): AnalyticsReport {
@@ -167,7 +178,8 @@ export function buildAnalyticsReport(range: DateRange): AnalyticsReport {
     return { ...ch, visits, share: ch.share };
   });
 
-  const totalBannerClicks = Math.round(totalSessions * PROMO_CTR);
+  const promoCtr = promoCtrForRange(range);
+  const totalBannerClicks = Math.round(totalVisits * promoCtr);
   const bannerClicks: BannerClickMetric[] = PROMO_BANNERS.map((b) => {
     const clicks = Math.round(totalBannerClicks * b.clickShare);
     return {
@@ -175,7 +187,7 @@ export function buildAnalyticsReport(range: DateRange): AnalyticsReport {
       label: b.alt,
       clicks,
       share: b.clickShare,
-      ctr: clicks / totalSessions,
+      ctr: totalVisits > 0 ? clicks / totalVisits : 0,
     };
   });
 
@@ -186,6 +198,7 @@ export function buildAnalyticsReport(range: DateRange): AnalyticsReport {
     totalUsers,
     avgSessionDurationSec: 628,
     bounceRate: 0.382,
+    promoCtr,
     daily,
     countries,
     devices,
