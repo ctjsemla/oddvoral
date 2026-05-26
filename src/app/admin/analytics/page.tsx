@@ -11,13 +11,48 @@ import {
 } from "@/lib/admin/analytics";
 import { resolvePreset, type DatePresetId, type DateRange } from "@/lib/admin/date-range";
 
+function linePath(values: number[], width: number, height: number, pad = 12): string {
+  const n = values.length;
+  if (n === 0) return "";
+  const max = Math.max(...values, 1);
+  const innerW = Math.max(1, width - pad * 2);
+  const innerH = Math.max(1, height - pad * 2);
+
+  const xFor = (i: number) => pad + (i / Math.max(1, n - 1)) * innerW;
+  const yFor = (v: number) => pad + (1 - v / max) * innerH;
+
+  let d = `M ${xFor(0)} ${yFor(values[0])}`;
+  for (let i = 1; i < n; i++) d += ` L ${xFor(i)} ${yFor(values[i])}`;
+  return d;
+}
+
+function areaPath(values: number[], width: number, height: number, pad = 12): string {
+  const n = values.length;
+  if (n === 0) return "";
+  const max = Math.max(...values, 1);
+  const innerW = Math.max(1, width - pad * 2);
+  const innerH = Math.max(1, height - pad * 2);
+
+  const xFor = (i: number) => pad + (i / Math.max(1, n - 1)) * innerW;
+  const yFor = (v: number) => pad + (1 - v / max) * innerH;
+  const baseY = pad + innerH;
+
+  let d = `M ${xFor(0)} ${baseY} L ${xFor(0)} ${yFor(values[0])}`;
+  for (let i = 1; i < n; i++) d += ` L ${xFor(i)} ${yFor(values[i])}`;
+  d += ` L ${xFor(n - 1)} ${baseY} Z`;
+  return d;
+}
+
 export default function AdminAnalyticsPage() {
   const [preset, setPreset] = useState<DatePresetId>("last90");
   const [range, setRange] = useState<DateRange>(() => resolvePreset("last90"));
 
   const report = useMemo(() => buildAnalyticsReport(range), [range]);
 
-  const maxDaily = Math.max(...report.daily.map((d) => d.visits), 1);
+  const visits = report.daily.map((d) => d.visits);
+  const maxDaily = Math.max(...visits, 1);
+  const minDaily = Math.min(...visits, 0);
+  const avgDaily = Math.round(report.totalVisits / Math.max(1, report.daily.length));
 
   return (
     <AdminShell>
@@ -63,23 +98,84 @@ export default function AdminAnalyticsPage() {
           <section className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
             <h2 className="font-semibold text-gray-900 mb-1">Visits over time</h2>
             <p className="text-xs text-gray-500 mb-4">Daily visits · Asia/Kolkata</p>
-            <div className="flex items-end gap-px h-36 overflow-x-auto">
-              {report.daily.map((d) => (
-                <div
-                  key={d.date}
-                  className="flex flex-col items-center flex-1 min-w-[6px] group"
-                  title={`${d.date}: ${d.visits.toLocaleString("en-IN")}`}
+            <div className="overflow-x-auto">
+              <div className="min-w-[720px]">
+                <svg
+                  viewBox="0 0 720 160"
+                  className="w-full h-40"
+                  role="img"
+                  aria-label="Visits over time line chart"
                 >
-                  <div
-                    className="w-full bg-op-accent/80 rounded-t hover:bg-op-header transition-colors"
-                    style={{ height: `${(d.visits / maxDaily) * 100}%`, minHeight: 2 }}
+                  <defs>
+                    <linearGradient id="ov-area" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="rgb(46 125 50)" stopOpacity="0.25" />
+                      <stop offset="100%" stopColor="rgb(46 125 50)" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* grid */}
+                  {[0, 1, 2, 3].map((i) => (
+                    <line
+                      key={i}
+                      x1={12}
+                      x2={708}
+                      y1={12 + (i * (160 - 24)) / 3}
+                      y2={12 + (i * (160 - 24)) / 3}
+                      stroke="rgb(229 231 235)"
+                      strokeWidth="1"
+                    />
+                  ))}
+
+                  <path d={areaPath(visits, 720, 160, 12)} fill="url(#ov-area)" />
+                  <path
+                    d={linePath(visits, 720, 160, 12)}
+                    fill="none"
+                    stroke="rgb(27 94 32)"
+                    strokeWidth="2.5"
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
                   />
+
+                  {/* hover points */}
+                  {report.daily.map((d, i) => {
+                    const x = 12 + (i / Math.max(1, report.daily.length - 1)) * (720 - 24);
+                    const y = 12 + (1 - d.visits / maxDaily) * (160 - 24);
+                    return (
+                      <circle key={d.date} cx={x} cy={y} r={3} fill="rgb(67 160 71)">
+                        <title>
+                          {d.date}: {d.visits.toLocaleString("en-IN")} visits
+                        </title>
+                      </circle>
+                    );
+                  })}
+                </svg>
+
+                <div className="flex justify-between text-[10px] text-gray-400 -mt-1">
+                  <span>{report.daily[0]?.date}</span>
+                  <span>{report.daily[report.daily.length - 1]?.date}</span>
                 </div>
-              ))}
+              </div>
             </div>
-            <div className="flex justify-between text-[10px] text-gray-400 mt-2">
-              <span>{report.daily[0]?.date}</span>
-              <span>{report.daily[report.daily.length - 1]?.date}</span>
+
+            <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] text-gray-500">
+              <div className="bg-gray-50 rounded-md px-2 py-1.5">
+                <span className="text-gray-400">Min</span>{" "}
+                <span className="font-medium tabular-nums">
+                  {minDaily.toLocaleString("en-IN")}
+                </span>
+              </div>
+              <div className="bg-gray-50 rounded-md px-2 py-1.5">
+                <span className="text-gray-400">Avg</span>{" "}
+                <span className="font-medium tabular-nums">
+                  {avgDaily.toLocaleString("en-IN")}
+                </span>
+              </div>
+              <div className="bg-gray-50 rounded-md px-2 py-1.5 text-right">
+                <span className="text-gray-400">Max</span>{" "}
+                <span className="font-medium tabular-nums">
+                  {maxDaily.toLocaleString("en-IN")}
+                </span>
+              </div>
             </div>
           </section>
 
